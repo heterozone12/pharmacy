@@ -12,7 +12,7 @@ if (isset($_POST['add'])) {
     $q = $_POST['stock_quantity'];
     $r = $_POST['reorder_level'];
 
-    $sql = "INSERT INTO Medicines
+  $sql = "INSERT INTO medicines
             (generic_name, brand_name, dosage_form, strength,
              expiration_date, unit_price, stock_quantity, reorder_level)
             VALUES ('$g','$b','$f','$s','$e','$p','$q','$r')";
@@ -22,7 +22,7 @@ if (isset($_POST['add'])) {
 // DELETE
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    mysqli_query($conn,"DELETE FROM Medicines WHERE medicine_id=$id");
+  mysqli_query($conn,"DELETE FROM medicines WHERE medicine_id=$id");
 }
 
 // SEARCH
