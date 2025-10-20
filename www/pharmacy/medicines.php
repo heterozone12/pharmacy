@@ -67,6 +67,18 @@ if (isset($_GET['q'])) {
     $sql = "SELECT * FROM medicines";
 }
 $result = mysqli_query($conn,$sql);
+
+// Support quick action filters: low_stock and expiring
+$filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+if ($filter === 'low_stock') {
+  $sql = "SELECT * FROM medicines WHERE stock_quantity <= reorder_level";
+  $result = mysqli_query($conn, $sql);
+} elseif ($filter === 'expiring') {
+  $thirty = date('Y-m-d', strtotime('+30 days'));
+  // include already expired items as well
+  $sql = "SELECT * FROM medicines WHERE expiration_date <= '$thirty'";
+  $result = mysqli_query($conn, $sql);
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -82,6 +94,9 @@ $result = mysqli_query($conn,$sql);
   <style>
     .dt-buttons .btn { margin-right: 5px; }
     .table tbody tr.low-stock { background-color: rgba(255, 193, 7, 0.1) !important; }
+    /* expired items: make row and expiry text stand out */
+    .table tbody tr.table-danger td { background-color: rgba(220,53,69,0.06) !important; }
+    .text-expired { color: #a71d2a !important; font-weight: 600; }
     .text-expiring { color: #dc3545 !important; }
     .dataTables_wrapper .dataTables_paginate .page-item.active .page-link {
       background-color: var(--bs-primary);
@@ -235,14 +250,22 @@ $result = mysqli_query($conn,$sql);
                 }
                 
                 $expiry_class = '';
+                $row_class = $stock_class;
                 $today = new DateTime();
                 $expiry = new DateTime($row['expiration_date']);
-                $diff = $today->diff($expiry);
-                if ($diff->days <= 30) {
-                  $expiry_class = 'text-expiring';
+                if ($expiry < $today) {
+                  // already expired
+                  $expiry_class = 'text-expired';
+                  // add bootstrap-like danger row class
+                  $row_class = trim(($row_class . ' table-danger'));
+                } else {
+                  $diff = $today->diff($expiry);
+                  if ($diff->days <= 30) {
+                    $expiry_class = 'text-expiring';
+                  }
                 }
               ?>
-              <tr class="<?= $stock_class ?>">
+              <tr class="<?= $row_class ?>">
                 <td class="text-center"><?= $row['medicine_id'] ?></td>
                 <td class="cell-generic"><?= htmlspecialchars($row['generic_name']) ?></td>
                 <td class="cell-brand"><?= htmlspecialchars($row['brand_name']) ?></td>

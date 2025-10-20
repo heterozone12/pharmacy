@@ -5,10 +5,10 @@ require('includes/database.php');
 $total_medicines = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM medicines"))['count'];
 $low_stock = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM medicines WHERE stock_quantity <= reorder_level"))['count'];
 
-// Get expiring medicines (within 30 days)
+// Get expiring medicines (already expired or within the next 30 days)
 $today = date('Y-m-d');
 $thirty_days = date('Y-m-d', strtotime('+30 days'));
-$expiring = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM medicines WHERE expiration_date BETWEEN '$today' AND '$thirty_days'"))['count'];
+$expiring = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM medicines WHERE expiration_date <= '$thirty_days'"))['count'];
 
 // Get recent activity
 $recent = mysqli_query($conn, "SELECT * FROM medicines ORDER BY medicine_id DESC LIMIT 5");

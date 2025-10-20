@@ -88,7 +88,7 @@
         <div style="margin-bottom: 20px;">
             <a href="/" class="btn">🏠 Home</a>
             <a href="/simple-crud.php" class="btn">� CRUD Demo</a>
-            <a href="http://localhost:8080" target="_blank" class="btn">�️ phpMyAdmin</a>
+            <a href="/phpmyadmin" target="_blank" class="btn">💻 phpMyAdmin</a>
         </div>
 
         <div class="result info">

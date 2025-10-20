@@ -5,7 +5,8 @@ services:
     image: php:8.1-apache
     container_name: basic-php-apache
     ports:
-      - "80:80"
+      # Host port is configurable via HOST_HTTP_PORT (default 8080)
+      - "${HOST_HTTP_PORT:-8080}:80"
     volumes:
       - ./www:/var/www/html
       - ./config/phpmyadmin:/var/www/html/phpmyadmin
