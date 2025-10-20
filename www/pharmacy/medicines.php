@@ -1,4 +1,35 @@
 <?php
+// start output buffering so we can safely return JSON for AJAX even if some include outputs
+if (!ob_get_level()) { ob_start(); }
+// AJAX UPDATE handler (must run before any output)
+if (isset($_POST['ajax_update'])) {
+  include('includes/database.php');
+  $id = (int)$_POST['medicine_id'];
+  $g = mysqli_real_escape_string($conn, $_POST['generic_name']);
+  $b = mysqli_real_escape_string($conn, $_POST['brand_name']);
+  $f = mysqli_real_escape_string($conn, $_POST['dosage_form']);
+  $s = mysqli_real_escape_string($conn, $_POST['strength']);
+  $e = $_POST['expiration_date'];
+  $p = $_POST['unit_price'];
+  $q = $_POST['stock_quantity'];
+  $r = $_POST['reorder_level'];
+
+  $sql = "UPDATE medicines SET 
+        generic_name='$g', brand_name='$b', dosage_form='$f', strength='$s',
+        expiration_date='$e', unit_price='$p', stock_quantity='$q', reorder_level='$r'
+        WHERE medicine_id=$id";
+  $ok = mysqli_query($conn, $sql);
+  // clear any accidental output that may have been produced so we return clean JSON
+  if (ob_get_length()) { ob_clean(); }
+  header('Content-Type: application/json');
+  if ($ok) {
+    echo json_encode(['success' => true, 'message' => 'Medicine updated', 'id' => $id]);
+  } else {
+    echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
+  }
+  exit;
+}
+
 include('includes/database.php');
 
 // ADD
@@ -213,20 +244,19 @@ $result = mysqli_query($conn,$sql);
               ?>
               <tr class="<?= $stock_class ?>">
                 <td class="text-center"><?= $row['medicine_id'] ?></td>
-                <td><?= htmlspecialchars($row['generic_name']) ?></td>
-                <td><?= htmlspecialchars($row['brand_name']) ?></td>
-                <td><?= htmlspecialchars($row['dosage_form']) ?></td>
-                <td><?= htmlspecialchars($row['strength']) ?></td>
-                <td class="<?= $expiry_class ?>"><?= $row['expiration_date'] ?></td>
-                <td data-order="<?= $row['unit_price'] ?>">$<?= number_format($row['unit_price'], 2) ?></td>
-                <td data-order="<?= $row['stock_quantity'] ?>"><?= $row['stock_quantity'] ?></td>
-                <td><?= $row['reorder_level'] ?></td>
+                <td class="cell-generic"><?= htmlspecialchars($row['generic_name']) ?></td>
+                <td class="cell-brand"><?= htmlspecialchars($row['brand_name']) ?></td>
+                <td class="cell-form"><?= htmlspecialchars($row['dosage_form']) ?></td>
+                <td class="cell-strength"><?= htmlspecialchars($row['strength']) ?></td>
+                <td class="cell-expiration <?= $expiry_class ?>"><?= $row['expiration_date'] ?></td>
+                <td class="cell-price" data-order="<?= $row['unit_price'] ?>">$<?= number_format($row['unit_price'], 2) ?></td>
+                <td class="cell-stock" data-order="<?= $row['stock_quantity'] ?>"><?= $row['stock_quantity'] ?></td>
+                <td class="cell-reorder"><?= $row['reorder_level'] ?></td>
                 <td class="text-center">
                   <div class="btn-group btn-group-sm" role="group">
-                    <a href="edit.php?id=<?= $row['medicine_id'] ?>" 
-                       class="btn btn-primary" title="Edit">
+                    <button type="button" class="btn btn-primary btn-edit" data-id="<?= $row['medicine_id'] ?>" title="Edit">
                       <i class="fas fa-edit"></i>
-                    </a>
+                    </button>
                     <a href="?delete=<?= $row['medicine_id'] ?>" 
                        onclick="return confirm('Are you sure you want to delete this medicine?')" 
                        class="btn btn-danger" title="Delete">
@@ -235,6 +265,8 @@ $result = mysqli_query($conn,$sql);
                   </div>
                 </td>
               </tr>
+
+              <!-- inline edit handled via DataTables child row to avoid column-count mismatch -->
               <?php endwhile; ?>
             </tbody>
           </table>
@@ -342,6 +374,108 @@ $result = mysqli_query($conn,$sql);
       // Make the table header fixed on scroll
       $(window).scroll(function() {
         table.fixedHeader.adjust();
+      });
+
+      // Inline edit using DataTables child row
+      function makeEditFormHtml(id, rowData) {
+        // rowData is an object mapping field names
+        var html = '<form class="inline-edit-form d-flex gap-2" data-id="' + id + '">';
+        html += '<input type="text" name="generic_name" class="form-control form-control-sm" style="width:18%" value="' + $('<div>').text(rowData.generic_name).html() + '">';
+        html += '<input type="text" name="brand_name" class="form-control form-control-sm" style="width:18%" value="' + $('<div>').text(rowData.brand_name).html() + '">';
+        html += '<input type="text" name="dosage_form" class="form-control form-control-sm" style="width:12%" value="' + $('<div>').text(rowData.dosage_form).html() + '">';
+        html += '<input type="text" name="strength" class="form-control form-control-sm" style="width:10%" value="' + $('<div>').text(rowData.strength).html() + '">';
+        html += '<input type="date" name="expiration_date" class="form-control form-control-sm" style="width:12%" value="' + $('<div>').text(rowData.expiration_date).html() + '">';
+        html += '<input type="number" step="0.01" name="unit_price" class="form-control form-control-sm" style="width:8%" value="' + rowData.unit_price + '">';
+        html += '<input type="number" name="stock_quantity" class="form-control form-control-sm" style="width:8%" value="' + rowData.stock_quantity + '">';
+        html += '<input type="number" name="reorder_level" class="form-control form-control-sm" style="width:8%" value="' + rowData.reorder_level + '">';
+        html += '<div class="ms-2">';
+        html += '<button type="button" class="btn btn-sm btn-success btn-save">Save</button> ';
+        html += '<button type="button" class="btn btn-sm btn-secondary btn-cancel">Cancel</button>';
+        html += '</div>';
+        html += '</form>';
+        return html;
+      }
+
+      $(document).on('click', '.btn-edit', function() {
+        var id = $(this).data('id');
+        var $btn = $(this);
+        // find DataTable row
+        var dtRow = null;
+        table.rows().every(function() {
+          var r = this.node();
+          var first = $(r).find('td:first').text().trim();
+          if (first == id) { dtRow = this; return false; }
+        });
+        if (!dtRow) return;
+        // if child shown, close it
+        if (dtRow.child.isShown()) {
+          dtRow.child.hide();
+          return;
+        }
+        // build rowData
+        var rowNode = $(dtRow.node());
+        var rowData = {
+          generic_name: rowNode.find('.cell-generic').text().trim(),
+          brand_name: rowNode.find('.cell-brand').text().trim(),
+          dosage_form: rowNode.find('.cell-form').text().trim(),
+          strength: rowNode.find('.cell-strength').text().trim(),
+          expiration_date: rowNode.find('.cell-expiration').text().trim(),
+          unit_price: rowNode.find('.cell-price').attr('data-order') || '0',
+          stock_quantity: rowNode.find('.cell-stock').attr('data-order') || '0',
+          reorder_level: rowNode.find('.cell-reorder').text().trim() || ''
+        };
+        var formHtml = makeEditFormHtml(id, rowData);
+        dtRow.child(formHtml).show();
+        // scroll
+        $('html, body').animate({ scrollTop: $(dtRow.node()).offset().top - 120 }, 200);
+      });
+
+      // cancel
+      $(document).on('click', '.btn-cancel', function() {
+        var $form = $(this).closest('form.inline-edit-form');
+        var id = $form.data('id');
+        table.rows().every(function() {
+          var r = $(this.node()).find('td:first').text().trim();
+          if (r == id) { this.child.hide(); return false; }
+        });
+      });
+
+      // save
+      $(document).on('click', '.btn-save', function() {
+        var $form = $(this).closest('form.inline-edit-form');
+        var id = $form.data('id');
+        var data = $form.serializeArray();
+        data.push({name: 'ajax_update', value: 1});
+        data.push({name: 'medicine_id', value: id});
+
+        $.post(window.location.href, data, function(resp) {
+          if (resp && resp.success) {
+            // update DataTable row cells
+            table.rows().every(function() {
+              var first = $(this.node()).find('td:first').text().trim();
+              if (first == id) {
+                var $r = $(this.node());
+                $r.find('.cell-generic').text($form.find('[name="generic_name"]').val());
+                $r.find('.cell-brand').text($form.find('[name="brand_name"]').val());
+                $r.find('.cell-form').text($form.find('[name="dosage_form"]').val());
+                $r.find('.cell-strength').text($form.find('[name="strength"]').val());
+                $r.find('.cell-expiration').text($form.find('[name="expiration_date"]').val());
+                var price = parseFloat($form.find('[name="unit_price"]').val()) || 0;
+                $r.find('.cell-price').text('$' + price.toFixed(2)).attr('data-order', price);
+                var stock = parseInt($form.find('[name="stock_quantity"]').val()) || 0;
+                $r.find('.cell-stock').text(stock).attr('data-order', stock);
+                $r.find('.cell-reorder').text($form.find('[name="reorder_level"]').val() || '');
+                this.child.hide();
+                table.rows().invalidate().draw(false);
+                return false;
+              }
+            });
+          } else {
+            alert('Update failed: ' + (resp && resp.message ? resp.message : 'unknown'));
+          }
+        }, 'json').fail(function(xhr) {
+          alert('Request failed: ' + xhr.responseText);
+        });
       });
     });
   </script>
