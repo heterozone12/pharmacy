@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  php-apache:
+    image: php:8.1-apache
+    container_name: basic-php-apache
+    ports:
+      - "80:80"
+    volumes:
+      - ./www:/var/www/html
+      - ./config/phpmyadmin:/var/www/html/phpmyadmin
+    depends_on:
+      - mysql
+    networks:
+      - basic-network
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "
+      apt-get update &&
+      apt-get install -y libmariadb-dev wget unzip &&
+      docker-php-ext-install pdo_mysql mysqli &&
+      wget https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.zip -O /tmp/phpmyadmin.zip &&
+      unzip /tmp/phpmyadmin.zip -d /tmp/ &&
+      cp -r /tmp/phpMyAdmin-5.2.1-all-languages/* /var/www/html/phpmyadmin/ &&
+      cp /var/www/html/phpmyadmin/config.inc.php /var/www/html/phpmyadmin/config.inc.php.backup &&
+      rm -rf /var/lib/apt/lists/* /tmp/* &&
+      exec apache2-foreground
+      "
+
+  mysql:
+    image: mysql:8.0
+    container_name: basic-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: basic_db
+      MYSQL_USER: student
+      MYSQL_PASSWORD: student
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - basic-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  basic-network:
+    driver: bridge
